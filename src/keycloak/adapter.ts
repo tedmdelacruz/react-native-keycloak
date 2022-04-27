@@ -11,24 +11,25 @@ import type {
   KeycloakRegisterOptions,
   OIDCProviderConfig,
 } from '@react-keycloak/keycloak-ts';
-import InAppBrowser from 'react-native-inappbrowser-reborn';
 
 import LocalStorage from './storage';
-import type { RNKeycloakInitOptions } from './types';
+import type { Browser, RNKeycloakInitOptions } from './types';
 import { fetchJSON } from './utils';
 
 class RNAdapter implements KeycloakAdapter {
-  private readonly client: Readonly<KeycloakInstance>;
-
-  private readonly initOptions: Readonly<RNKeycloakInitOptions>;
+  private readonly browser: Readonly<Browser>;
 
   constructor(
-    client: Readonly<KeycloakInstance>,
+    private readonly client: Readonly<KeycloakInstance>,
     _keycloakConfig: Readonly<KeycloakConfig>,
     initOptions: Readonly<RNKeycloakInitOptions>
   ) {
     this.client = client;
-    this.initOptions = initOptions;
+
+    if (initOptions.browserAdapter == null)
+      throw new Error('Browser adapter is not set');
+
+    this.browser = initOptions.browserAdapter;
   }
 
   createCallbackStorage(): CallbackStorage {
@@ -43,12 +44,11 @@ class RNAdapter implements KeycloakAdapter {
   async login(options?: KeycloakLoginOptions): Promise<void> {
     const loginUrl = this.client.createLoginUrl(options);
 
-    if (await InAppBrowser.isAvailable()) {
+    if (await this.browser.isAvailable()) {
       // See for more details https://github.com/proyecto26/react-native-inappbrowser#authentication-flow-using-deep-linking
-      const res = await InAppBrowser.openAuth(
+      const res = await this.browser.openAuthSession(
         loginUrl,
-        this.client.redirectUri!,
-        this.initOptions.inAppBrowserOptions
+        this.client.redirectUri!
       );
 
       if (res.type === 'success' && res.url) {
@@ -71,12 +71,11 @@ class RNAdapter implements KeycloakAdapter {
   async logout(options?: KeycloakLogoutOptions): Promise<void> {
     const logoutUrl = this.client.createLogoutUrl(options);
 
-    if (await InAppBrowser.isAvailable()) {
+    if (await this.browser.isAvailable()) {
       // See for more details https://github.com/proyecto26/react-native-inappbrowser#authentication-flow-using-deep-linking
-      const res = await InAppBrowser.openAuth(
+      const res = await this.browser.openAuthSession(
         logoutUrl,
-        this.client.redirectUri!,
-        this.initOptions.inAppBrowserOptions
+        this.client.redirectUri!
       );
 
       if (res.type === 'success') {
@@ -94,12 +93,11 @@ class RNAdapter implements KeycloakAdapter {
   async register(options?: KeycloakRegisterOptions) {
     const registerUrl = this.client.createRegisterUrl(options);
 
-    if (await InAppBrowser.isAvailable()) {
+    if (await this.browser.isAvailable()) {
       // See for more details https://github.com/proyecto26/react-native-inappbrowser#authentication-flow-using-deep-linking
-      const res = await InAppBrowser.openAuth(
+      const res = await this.browser.openAuthSession(
         registerUrl,
-        this.client.redirectUri!,
-        this.initOptions.inAppBrowserOptions
+        this.client.redirectUri!
       );
 
       if (res.type === 'success' && res.url) {
@@ -119,7 +117,7 @@ class RNAdapter implements KeycloakAdapter {
     const accountUrl = this.client.createAccountUrl();
 
     if (typeof accountUrl !== 'undefined') {
-      await InAppBrowser.open(accountUrl, this.initOptions.inAppBrowserOptions);
+      await this.browser.open(accountUrl);
     } else {
       throw 'Not supported by the OIDC server';
     }
